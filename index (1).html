@@ -1,0 +1,834 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Maya's Compass</title>
+
+<!-- iPhone: make it installable to the home screen like an app -->
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Compass" />
+<meta name="theme-color" content="#2A0B24" />
+<link rel="apple-touch-icon" href="icon.png" />
+<link rel="icon" href="icon.png" />
+
+<style>
+  html, body { margin: 0; background: #2A0B24; }
+  #root { min-height: 100vh; }
+  /* respect the iPhone notch / home bar */
+  body { padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom); }
+</style>
+
+<!-- React + Babel from CDN: no build step needed -->
+<script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone@7/babel.min.js"></script>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel" data-presets="react">
+const { useState, useEffect, useRef } = React;
+
+
+/* ============================================================
+   MAYA'S COMPASS
+   A private companion for Maya's senior year.
+   Palette drawn from her world: deep tidepool teal, sea-glass,
+   warm sand, coral ink, botanical green. Not the letter's tool —
+   the letter's keepsake.
+   ============================================================ */
+
+const C = {
+  abyss: "#2A0B24",     // deep plum-black — background ink
+  tide: "#B0176B",      // magenta
+  sea: "#FF4FA3",       // bright pink (mid)
+  glass: "#FFC2E4",     // soft pink glow
+  sand: "#FFF3FA",      // near-white blush paper
+  sandDeep: "#FDE0F0",
+  coral: "#FF6F3C",     // punchy tangerine accent
+  coralDeep: "#E8531F",
+  moss: "#7C3AED",      // electric violet (was botanical)
+  ink: "#3A0A2E",
+  inkSoft: "#8A4C74",
+}
+
+const NAV = [
+  { id: "letter", label: "The Letter" },
+  { id: "patterns", label: "What I Noticed" },
+  { id: "know", label: "Know Yourself" },
+  { id: "careers", label: "Explore Careers" },
+  { id: "projects", label: "Build Evidence" },
+  { id: "scorecard", label: "The Scorecard" },
+  { id: "compass", label: "My Compass" },
+];
+
+// ---- storage helpers (graceful, never throws to UI) ----
+function loadKey(key, fallback) {
+  try {
+    const raw = localStorage.getItem(key);
+    return raw ? JSON.parse(raw) : fallback;
+  } catch {
+    return fallback;
+  }
+}
+function saveKey(key, value) {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    /* storage full or blocked — session state still holds */
+  }
+}
+
+// ============================================================
+function App() {
+  const [tab, setTab] = useState("letter");
+  const [loaded, setLoaded] = useState(false);
+
+  const [reflections, setReflections] = useState({});
+  const [projects, setProjects] = useState({});
+  const [scores, setScores] = useState({});
+  const [schools, setSchools] = useState(["UMD", "CMU", "SVA", "RISD"]);
+  const [compass, setCompass] = useState({});
+
+  useEffect(() => {
+    setReflections(loadKey("maya:reflections", {}));
+    setProjects(loadKey("maya:projects", {}));
+    setScores(loadKey("maya:scores", {}));
+    setSchools(loadKey("maya:schools", ["UMD", "CMU", "SVA", "RISD"]));
+    setCompass(loadKey("maya:compass", {}));
+    setLoaded(true);
+  }, []);
+
+  useEffect(() => { if (loaded) saveKey("maya:reflections", reflections); }, [reflections, loaded]);
+  useEffect(() => { if (loaded) saveKey("maya:projects", projects); }, [projects, loaded]);
+  useEffect(() => { if (loaded) saveKey("maya:scores", scores); }, [scores, loaded]);
+  useEffect(() => { if (loaded) saveKey("maya:schools", schools); }, [schools, loaded]);
+  useEffect(() => { if (loaded) saveKey("maya:compass", compass); }, [compass, loaded]);
+
+  return (
+    <div style={S.shell}>
+      <Style />
+      <Aurora />
+      <Header tab={tab} setTab={setTab} />
+      <main style={S.main}>
+        {tab === "letter" && <Letter />}
+        {tab === "patterns" && <Patterns />}
+        {tab === "know" && <KnowYourself value={reflections} onChange={setReflections} />}
+        {tab === "careers" && <Careers />}
+        {tab === "projects" && <Projects value={projects} onChange={setProjects} />}
+        {tab === "scorecard" && (
+          <Scorecard scores={scores} setScores={setScores} schools={schools} setSchools={setSchools} />
+        )}
+        {tab === "compass" && <Compass value={compass} onChange={setCompass} />}
+      </main>
+      <footer style={S.footer}>
+        <span>Maya's Compass · a private companion, saved just for you</span>
+      </footer>
+    </div>
+  );
+}
+
+// ---------- ambient background ----------
+function Aurora() {
+  return (
+    <div aria-hidden style={S.aurora}>
+      <div className="blob b1" />
+      <div className="blob b2" />
+      <div className="blob b3" />
+    </div>
+  );
+}
+
+// ---------- header / nav ----------
+function Header({ tab, setTab }) {
+  return (
+    <header style={S.header}>
+      <div style={S.brand}>
+        <CompassMark />
+        <div>
+          <div style={S.brandTitle}>Maya's Compass</div>
+          <div style={S.brandSub}>a guide for the life you want to build</div>
+        </div>
+      </div>
+      <nav style={S.nav}>
+        {NAV.map((n) => (
+          <button
+            key={n.id}
+            onClick={() => setTab(n.id)}
+            className="navbtn"
+            style={{
+              ...S.navBtn,
+              color: tab === n.id ? C.sand : C.glass,
+              background: tab === n.id ? C.tide : "transparent",
+              boxShadow: tab === n.id ? "inset 0 0 0 1px rgba(143,194,187,.4)" : "none",
+            }}
+          >
+            {n.label}
+          </button>
+        ))}
+      </nav>
+    </header>
+  );
+}
+
+function CompassMark() {
+  return (
+    <svg width="40" height="40" viewBox="0 0 40 40" className="spin-slow" aria-hidden>
+      <circle cx="20" cy="20" r="18" fill="none" stroke={C.glass} strokeWidth="1.4" opacity=".5" />
+      <circle cx="20" cy="20" r="13" fill="none" stroke={C.sea} strokeWidth="1" opacity=".4" />
+      <polygon points="20,6 24,20 20,34 16,20" fill={C.coral} />
+      <polygon points="20,6 20,20 16,20" fill={C.coralDeep} />
+      <circle cx="20" cy="20" r="2.2" fill={C.sand} />
+    </svg>
+  );
+}
+
+// ---------- shared bits ----------
+function Eyebrow({ children }) {
+  return <div style={S.eyebrow}>{children}</div>;
+}
+function Card({ children, style }) {
+  return <div style={{ ...S.card, ...style }}>{children}</div>;
+}
+
+// ============================================================
+// 1. THE LETTER
+// ============================================================
+function Letter() {
+  return (
+    <div className="fade">
+      <Eyebrow>a letter, before anything else</Eyebrow>
+      <h1 style={S.h1}>Dear Maya,</h1>
+      <p style={S.lead}>
+        I want to begin by telling you something I hope you never forget.
+      </p>
+      <p style={S.pull}>You are not behind.</p>
+      <p style={S.body}>
+        You don't need your whole life figured out before you graduate. Your job this
+        year isn't to choose the perfect major or the perfect career. Your job is to become
+        more deeply acquainted with yourself.
+      </p>
+      <div style={S.twoLine}>
+        <p style={S.body}>The right college will not tell you who you are.</p>
+        <p style={{ ...S.body, color: C.tide, fontWeight: 600 }}>
+          The right college will give you room to become more of who you already are.
+        </p>
+      </div>
+
+      <Card style={{ marginTop: 28, borderLeft: `4px solid ${C.coral}` }}>
+        <h3 style={S.h3}>A different question</h3>
+        <p style={S.body}>Instead of asking <em>"What should I major in?"</em>, ask:</p>
+        <p style={{ ...S.pull, fontSize: 26, margin: "10px 0 0" }}>
+          "What kind of world do I want my creativity to help build?"
+        </p>
+        <p style={{ ...S.small, marginTop: 10 }}>That question will lead you much farther.</p>
+      </Card>
+
+      <Card style={{ marginTop: 22, background: C.tide, color: C.sand }}>
+        <h3 style={{ ...S.h3, color: C.sand }}>Your humanity is your greatest strength</h3>
+        <p style={{ ...S.body, color: "#E9E0D0" }}>
+          You're entering adulthood at a time when AI can generate images, write stories,
+          and imitate styles. It can do many impressive things. But it cannot live a life. It
+          cannot stand beside the ocean and feel awe. It cannot fall in love with a character
+          you imagined. It cannot care about the future of our planet, or fill journals for
+          years simply because creating brings joy.
+        </p>
+        <p style={{ ...S.body, color: "#E9E0D0", marginBottom: 0 }}>
+          Your greatest strength will never be competing with technology. It will be becoming
+          more deeply human. Protect your curiosity. Protect your wonder. Protect your
+          compassion. Protect your imagination.
+        </p>
+        <div style={S.protectRow}>
+          {["curiosity", "wonder", "compassion", "imagination"].map((w) => (
+            <span key={w} style={S.protectChip}>{w}</span>
+          ))}
+        </div>
+      </Card>
+
+      <p style={{ ...S.body, marginTop: 26, fontStyle: "italic" }}>
+        The world doesn't just need another artist. It needs <strong style={{ color: C.coral }}>Maya</strong>.
+      </p>
+    </div>
+  );
+}
+
+// ============================================================
+// 2. PATTERNS
+// ============================================================
+const INTERESTS = [
+  { t: "Illustration & visual storytelling", g: "art" },
+  { t: "Character design", g: "art" },
+  { t: "Original stories & imagined worlds", g: "art" },
+  { t: "Video games & game analysis", g: "games" },
+  { t: "Marine biology & ecosystems", g: "science" },
+  { t: "Plants & the natural world", g: "science" },
+  { t: "Chemistry & science", g: "science" },
+  { t: "The ethics of AI & creativity", g: "meaning" },
+  { t: "Meaning, symbolism & patterns", g: "meaning" },
+  { t: "Helping others, especially children", g: "meaning" },
+];
+const GROUP_COLOR = { art: C.coral, games: C.sea, science: C.moss, meaning: C.tide };
+
+function Patterns() {
+  return (
+    <div className="fade">
+      <Eyebrow>what I've noticed about you</Eyebrow>
+      <h1 style={S.h1}>These aren't random interests.</h1>
+      <p style={S.body}>
+        When I look at what you love, I don't see someone who is "all over the place." I see
+        patterns — different expressions of the same curiosity. You love understanding{" "}
+        <strong style={{ color: C.tide }}>how living systems work</strong>, whether those
+        systems are people, stories, ecosystems, games, or communities.
+      </p>
+      <div style={S.interestGrid}>
+        {INTERESTS.map((it, i) => (
+          <div
+            key={i}
+            className="interest"
+            style={{ ...S.interest, borderTop: `3px solid ${GROUP_COLOR[it.g]}`, animationDelay: `${i * 60}ms` }}
+          >
+            {it.t}
+          </div>
+        ))}
+      </div>
+      <Card style={{ marginTop: 26 }}>
+        <p style={{ ...S.body, marginBottom: 0 }}>
+          That is a remarkable strength — not a problem to solve. The task ahead isn't to cut
+          away parts of yourself until one "practical" interest remains. It's to find the
+          place where these threads get to stay woven together.
+        </p>
+      </Card>
+    </div>
+  );
+}
+
+// ============================================================
+// 3. KNOW YOURSELF (saved reflections)
+// ============================================================
+const KNOW_Qs = [
+  "What activities make me lose track of time?",
+  "What kinds of problems do I naturally think about?",
+  "What do people consistently tell me I'm good at?",
+  "If money didn't matter, what would I spend my days creating?",
+];
+
+function KnowYourself({ value, onChange }) {
+  return (
+    <div className="fade">
+      <Eyebrow>step one · know yourself</Eyebrow>
+      <h1 style={S.h1}>Start with your own voice.</h1>
+      <p style={S.body}>
+        Take your time here. There are no wrong answers — this is data about you, in your own
+        words. It saves automatically, so you can come back and add more whenever something
+        clicks.
+      </p>
+      {KNOW_Qs.map((q, i) => (
+        <div key={i} style={S.qBlock}>
+          <label style={S.qLabel}>
+            <span style={S.qNum}>{String(i + 1).padStart(2, "0")}</span>
+            {q}
+          </label>
+          <textarea
+            className="ta"
+            style={S.textarea}
+            placeholder="Write as much or as little as you want…"
+            value={value[i] || ""}
+            onChange={(e) => onChange({ ...value, [i]: e.target.value })}
+          />
+        </div>
+      ))}
+      <NineNote>
+        As an Enneagram Nine, the hardest and most important part of this page is answering for
+        yourself before you wonder what anyone else would say. If you catch yourself writing
+        what would make someone proud, cross it out and try again.
+      </NineNote>
+    </div>
+  );
+}
+
+// ============================================================
+// 4. CAREERS
+// ============================================================
+const CAREERS = [
+  { name: "Narrative Designer", day: "Shapes how a game's story unfolds through gameplay — dialogue, quests, world lore.", ed: "Game design, writing, or interactive media", fit: "games + storytelling" },
+  { name: "Character Designer", day: "Creates the look, personality, and expressions of characters for shows, games, comics.", ed: "Illustration, animation, or concept art portfolio", fit: "your core" },
+  { name: "Storyboard Artist", day: "Draws the shot-by-shot visual plan for animation and film before it's made.", ed: "Illustration / animation BFA", fit: "art + storytelling" },
+  { name: "Showrunner / Creator", day: "Leads a series' vision — writing, art direction, and story. The Rebecca Sugar path.", ed: "Usually art or writing, then years in the industry", fit: "the whole dream" },
+  { name: "Game Designer", day: "Designs how a game plays — rules, systems, and what the player feels.", ed: "Game design or CS + art", fit: "games" },
+  { name: "Concept Artist", day: "Designs the look of worlds, creatures, and objects before production begins.", ed: "Portfolio-first; art fundamentals + software", fit: "art + games" },
+  { name: "Medical / Scientific Illustrator", day: "Turns complex biology and science into clear, beautiful visuals.", ed: "Art + strong science; some do a master's", fit: "art + science" },
+  { name: "Exhibit Designer", day: "Designs museum and aquarium experiences people walk through.", ed: "Design + subject knowledge", fit: "art + science + people" },
+  { name: "UX Designer", day: "Designs how digital products feel to use — research-driven and creative.", ed: "Design, HCI, or self-taught + portfolio", fit: "art + systems" },
+  { name: "Environmental Communicator", day: "Uses art and story to help people understand and care about the planet.", ed: "Science + communication + art", fit: "meaning + science" },
+];
+
+function Careers() {
+  const [open, setOpen] = useState(null);
+  return (
+    <div className="fade">
+      <Eyebrow>step two · explore careers before majors</Eyebrow>
+      <h1 style={S.h1}>Research the life, not just the label.</h1>
+      <p style={S.body}>
+        A major is a means, not the destination. For each of these, ask: what do they actually
+        do every day? What excites me — and what doesn't? Tap a card to see more.
+      </p>
+      <div style={S.careerGrid}>
+        {CAREERS.map((c, i) => (
+          <button
+            key={i}
+            className="careercard"
+            onClick={() => setOpen(open === i ? null : i)}
+            style={{ ...S.careerCard, borderColor: open === i ? C.coral : "rgba(23,48,51,.12)" }}
+          >
+            <div style={S.careerName}>{c.name}</div>
+            <div style={S.careerFit}>{c.fit}</div>
+            {open === i && (
+              <div style={S.careerDetail}>
+                <p style={S.careerLine}><strong>Every day:</strong> {c.day}</p>
+                <p style={{ ...S.careerLine, marginBottom: 0 }}><strong>Education:</strong> {c.ed}</p>
+              </div>
+            )}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// 5. PROJECTS (evidence tracker)
+// ============================================================
+const PROJECT_DEFS = [
+  {
+    id: "series", title: "Develop your own animated series",
+    checks: ["Character sheets", "World rules", "Story summary", "Storyboards", "Color palette"],
+  },
+  {
+    id: "game", title: "Design a game (no code required)",
+    checks: ["Who is the player?", "What emotions should they feel?", "What problem does it solve?", "What makes it different?"],
+  },
+  {
+    id: "sciart", title: "Combine science and art",
+    checks: ["Marine-life creatures", "Botanical fantasy world", "Illustrated science guide", "Children's educational book", "Environmental story"],
+  },
+];
+
+function Projects({ value, onChange }) {
+  const toggle = (pid, idx) => {
+    const cur = value[pid] || {};
+    onChange({ ...value, [pid]: { ...cur, [idx]: !cur[idx] } });
+  };
+  const setReflect = (pid, field, text) => {
+    const cur = value[pid] || {};
+    onChange({ ...value, [pid]: { ...cur, [field]: text } });
+  };
+  return (
+    <div className="fade">
+      <Eyebrow>step three · build evidence</Eyebrow>
+      <h1 style={S.h1}>Don't just wonder. Create.</h1>
+      <p style={S.body}>
+        Three personal projects this year will teach you more than any brochure. Check things
+        off as you go — and after each one, notice what energized you. That's career data.
+      </p>
+      {PROJECT_DEFS.map((p) => {
+        const st = value[p.id] || {};
+        const done = p.checks.filter((_, i) => st[i]).length;
+        return (
+          <Card key={p.id} style={{ marginBottom: 18 }}>
+            <div style={S.projHead}>
+              <h3 style={{ ...S.h3, margin: 0 }}>{p.title}</h3>
+              <span style={S.projCount}>{done}/{p.checks.length}</span>
+            </div>
+            <div style={S.projBar}>
+              <div style={{ ...S.projBarFill, width: `${(done / p.checks.length) * 100}%` }} />
+            </div>
+            <div style={S.checkWrap}>
+              {p.checks.map((c, i) => (
+                <button key={i} className="check" onClick={() => toggle(p.id, i)} style={S.check}>
+                  <span style={{ ...S.checkBox, background: st[i] ? C.moss : "transparent", borderColor: st[i] ? C.moss : C.inkSoft }}>
+                    {st[i] ? "✓" : ""}
+                  </span>
+                  <span style={{ textDecoration: st[i] ? "line-through" : "none", opacity: st[i] ? 0.6 : 1 }}>{c}</span>
+                </button>
+              ))}
+            </div>
+            <div style={S.reflectRow}>
+              <div style={{ flex: 1 }}>
+                <label style={S.miniLabel}>What energized me?</label>
+                <textarea className="ta" style={S.miniTa} value={st.energized || ""} onChange={(e) => setReflect(p.id, "energized", e.target.value)} />
+              </div>
+              <div style={{ flex: 1 }}>
+                <label style={S.miniLabel}>What frustrated me?</label>
+                <textarea className="ta" style={S.miniTa} value={st.frustrated || ""} onChange={(e) => setReflect(p.id, "frustrated", e.target.value)} />
+              </div>
+            </div>
+          </Card>
+        );
+      })}
+    </div>
+  );
+}
+
+// ============================================================
+// 6. SCORECARD
+// ============================================================
+const CRITERIA = [
+  "Illustration", "Storytelling", "Game Design", "Biology Options",
+  "Environmental Science", "Ability to Double Major", "Undergraduate Research",
+  "Collaboration Across Departments", "Creative Culture", "Portfolio Development",
+  "Internship Opportunities", "Distance from Home", 'Campus "Feels Like Me"',
+];
+const GUT_ROWS = new Set([8, 12]); // creative culture + feels like me
+
+function Scorecard({ scores, setScores, schools, setSchools }) {
+  const setScore = (school, ci, v) => {
+    const key = `${school}:${ci}`;
+    setScores({ ...scores, [key]: scores[key] === v ? 0 : v });
+  };
+  const total = (school) =>
+    CRITERIA.reduce((sum, _, ci) => sum + (scores[`${school}:${ci}`] || 0), 0);
+  const max = CRITERIA.length * 5;
+
+  const rename = (i, name) => {
+    const next = [...schools];
+    next[i] = name;
+    setSchools(next);
+  };
+
+  const leader = schools.reduce((a, b) => (total(b) > total(a) ? b : a), schools[0]);
+
+  return (
+    <div className="fade">
+      <Eyebrow>a framework instead of rankings</Eyebrow>
+      <h1 style={S.h1}>Score the fit — not the prestige.</h1>
+      <p style={S.body}>
+        National rankings measure things that have nothing to do with whether <em>you'll</em>{" "}
+        thrive. Rate each school 1–5 on every row (tap the dots). The winner is the highest
+        total for what matters to <strong style={{ color: C.coral }}>you</strong>.
+      </p>
+
+      <div style={S.tableWrap}>
+        <table style={S.table}>
+          <thead>
+            <tr>
+              <th style={{ ...S.th, textAlign: "left" }}>Question</th>
+              {schools.map((s, i) => (
+                <th key={i} style={S.th}>
+                  <input
+                    className="schoolinput"
+                    style={S.schoolInput}
+                    value={s}
+                    onChange={(e) => rename(i, e.target.value)}
+                    aria-label={`School ${i + 1} name`}
+                  />
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {CRITERIA.map((crit, ci) => (
+              <tr key={ci} style={{ background: ci % 2 ? "transparent" : "rgba(255,255,255,.45)" }}>
+                <td style={S.critCell}>
+                  {crit}
+                  {GUT_ROWS.has(ci) && <span style={S.gutTag}>your gut</span>}
+                </td>
+                {schools.map((s, si) => {
+                  const val = scores[`${s}:${ci}`] || 0;
+                  return (
+                    <td key={si} style={S.scoreCell}>
+                      <div style={S.dots}>
+                        {[1, 2, 3, 4, 5].map((n) => (
+                          <button
+                            key={n}
+                            className="dot"
+                            aria-label={`${s} ${crit} ${n}`}
+                            onClick={() => setScore(s, ci, n)}
+                            style={{
+                              ...S.dot,
+                              background: n <= val ? (GUT_ROWS.has(ci) ? C.coral : C.sea) : "transparent",
+                              borderColor: n <= val ? (GUT_ROWS.has(ci) ? C.coral : C.sea) : "rgba(23,48,51,.28)",
+                            }}
+                          />
+                        ))}
+                      </div>
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+            <tr>
+              <td style={S.totalLabel}>TOTAL <span style={{ opacity: .6, fontWeight: 400 }}>/ {max}</span></td>
+              {schools.map((s, i) => {
+                const t = total(s);
+                const isLeader = t > 0 && s === leader;
+                return (
+                  <td key={i} style={S.totalCell}>
+                    <span style={{ ...S.totalNum, color: isLeader ? C.coral : C.tide }}>{t}</span>
+                    {isLeader && <span style={S.leaderTag}>▲ leads</span>}
+                  </td>
+                );
+              })}
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div style={S.keyRow}>
+        <span style={S.keyItem}><b>1</b> barely offered</span>
+        <span style={S.keyItem}><b>3</b> solid</span>
+        <span style={S.keyItem}><b>5</b> a real reason to go here</span>
+      </div>
+
+      <NineNote>
+        The two coral rows — <em>Creative Culture</em> and <em>Campus Feels Like Me</em> —
+        can't be researched. Score those from your gut, and don't let anyone fill them in for
+        you. Fill the whole card twice: once from research now, once after you visit. If the
+        totals shift, that gap is telling you something.
+      </NineNote>
+    </div>
+  );
+}
+
+// ============================================================
+// 7. COMPASS (closing questions)
+// ============================================================
+const COMPASS_Qs = [
+  "What kind of creator do I want to become?",
+  "What problems do I want to help solve?",
+  "What kind of teammate do I want to be?",
+  "What kind of life feels meaningful to me?",
+  "What kind of world do I hope my work leaves behind?",
+];
+
+function Compass({ value, onChange }) {
+  return (
+    <div className="fade">
+      <Eyebrow>my challenge to you</Eyebrow>
+      <h1 style={S.h1}>Leave with better questions.</h1>
+      <p style={S.body}>
+        By the end of senior year, I don't want you to have all the answers. I want you to hold
+        these five questions with honesty and courage. Come back to them whenever the noise gets
+        loud. Your answers will change — that's the point.
+      </p>
+      {COMPASS_Qs.map((q, i) => (
+        <div key={i} style={S.compassBlock}>
+          <div style={S.compassQ}>
+            <span style={S.compassStar}>✳</span>
+            {q}
+          </div>
+          <textarea
+            className="ta"
+            style={S.textarea}
+            placeholder="Today's answer…"
+            value={value[i] || ""}
+            onChange={(e) => onChange({ ...value, [i]: e.target.value })}
+          />
+        </div>
+      ))}
+      <Card style={{ marginTop: 24, background: C.abyss, color: C.sand, textAlign: "center" }}>
+        <p style={{ ...S.pull, color: C.glass, fontSize: 24, margin: 0 }}>
+          Whatever your path becomes, let it be one that makes you come alive.
+        </p>
+      </Card>
+    </div>
+  );
+}
+
+// ---------- Nine note component ----------
+function NineNote({ children }) {
+  return (
+    <div style={S.nineNote}>
+      <div style={S.nineTag}>a note for a Nine</div>
+      <p style={{ ...S.small, margin: 0, color: C.ink }}>{children}</p>
+    </div>
+  );
+}
+
+// ============================================================
+// STYLES
+// ============================================================
+const S = {
+  shell: {
+    minHeight: "100vh", background: C.abyss, color: C.ink,
+    fontFamily: "'Iowan Old Style', Palatino, 'Palatino Linotype', Georgia, serif",
+    position: "relative", overflow: "hidden",
+  },
+  aurora: { position: "fixed", inset: 0, zIndex: 0, pointerEvents: "none", opacity: 0.55 },
+  header: {
+    position: "relative", zIndex: 3, padding: "22px clamp(16px,5vw,54px) 10px",
+    display: "flex", flexDirection: "column", gap: 16,
+  },
+  brand: { display: "flex", alignItems: "center", gap: 14 },
+  brandTitle: { color: C.sand, fontSize: 26, letterSpacing: ".5px", fontWeight: 600 },
+  brandSub: { color: C.glass, fontSize: 13, letterSpacing: ".08em", textTransform: "uppercase" },
+  nav: { display: "flex", flexWrap: "wrap", gap: 6 },
+  navBtn: {
+    border: "none", cursor: "pointer", padding: "8px 15px", borderRadius: 999,
+    fontSize: 14.5, fontFamily: "inherit", letterSpacing: ".01em", transition: "all .25s ease",
+  },
+  main: {
+    position: "relative", zIndex: 2, maxWidth: 880, margin: "0 auto",
+    padding: "18px clamp(16px,5vw,40px) 60px",
+  },
+  footer: {
+    position: "relative", zIndex: 2, textAlign: "center",
+    padding: "18px", fontSize: 12.5, letterSpacing: ".06em", color: C.sea,
+  },
+
+  eyebrow: {
+    color: C.coral, fontSize: 12.5, letterSpacing: ".18em", textTransform: "uppercase",
+    marginBottom: 12, fontFamily: "'Iowan Old Style', Georgia, serif", fontWeight: 600,
+  },
+  h1: { color: C.sand, fontSize: "clamp(30px,5vw,44px)", lineHeight: 1.08, margin: "0 0 18px", fontWeight: 600 },
+  h3: { color: C.tide, fontSize: 21, margin: "0 0 8px", fontWeight: 600 },
+  lead: { color: C.glass, fontSize: 20, lineHeight: 1.6, margin: "0 0 14px" },
+  body: { color: "#DCE7E4", fontSize: 17.5, lineHeight: 1.72, margin: "0 0 16px" },
+  small: { color: C.inkSoft, fontSize: 15, lineHeight: 1.6 },
+  pull: {
+    color: C.coral, fontSize: 30, lineHeight: 1.2, fontWeight: 600, margin: "18px 0",
+    fontStyle: "italic",
+  },
+  twoLine: { margin: "10px 0", paddingLeft: 18, borderLeft: `2px solid ${C.sea}` },
+
+  card: {
+    background: C.sand, borderRadius: 16, padding: "24px 26px",
+    boxShadow: "0 18px 44px rgba(0,0,0,.28)",
+  },
+  protectRow: { display: "flex", flexWrap: "wrap", gap: 8, marginTop: 16 },
+  protectChip: {
+    background: "rgba(224,113,78,.22)", color: C.sand, border: `1px solid ${C.coral}`,
+    padding: "5px 13px", borderRadius: 999, fontSize: 14, letterSpacing: ".04em",
+  },
+
+  interestGrid: {
+    display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(200px,1fr))",
+    gap: 12, marginTop: 22,
+  },
+  interest: {
+    background: C.sand, borderRadius: 12, padding: "16px 16px", color: C.ink,
+    fontSize: 16, lineHeight: 1.4, boxShadow: "0 10px 26px rgba(0,0,0,.22)",
+  },
+
+  qBlock: { marginBottom: 22 },
+  qLabel: { display: "flex", alignItems: "baseline", gap: 10, color: C.glass, fontSize: 18, marginBottom: 8 },
+  qNum: { color: C.coral, fontSize: 14, fontWeight: 700, letterSpacing: ".05em" },
+  textarea: {
+    width: "100%", minHeight: 92, background: C.sand, border: "none", borderRadius: 12,
+    padding: "14px 16px", fontSize: 16.5, lineHeight: 1.6, color: C.ink, resize: "vertical",
+    fontFamily: "'Iowan Old Style', Georgia, serif", boxShadow: "inset 0 2px 8px rgba(0,0,0,.12)",
+    boxSizing: "border-box",
+  },
+
+  careerGrid: {
+    display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(230px,1fr))", gap: 12, marginTop: 20,
+  },
+  careerCard: {
+    textAlign: "left", background: C.sand, border: "1px solid rgba(23,48,51,.12)",
+    borderRadius: 12, padding: "16px 18px", cursor: "pointer", color: C.ink,
+    fontFamily: "inherit", transition: "border-color .2s ease, transform .2s ease",
+  },
+  careerName: { fontSize: 18, fontWeight: 600, color: C.tide },
+  careerFit: { fontSize: 13, color: C.coral, marginTop: 3, letterSpacing: ".03em" },
+  careerDetail: { marginTop: 12, paddingTop: 12, borderTop: "1px solid rgba(23,48,51,.14)" },
+  careerLine: { fontSize: 15, lineHeight: 1.55, color: C.inkSoft, margin: "0 0 8px" },
+
+  projHead: { display: "flex", justifyContent: "space-between", alignItems: "center" },
+  projCount: { color: C.moss, fontSize: 16, fontWeight: 700 },
+  projBar: { height: 6, background: "rgba(23,48,51,.12)", borderRadius: 99, margin: "12px 0 16px", overflow: "hidden" },
+  projBarFill: { height: "100%", background: C.moss, borderRadius: 99, transition: "width .3s ease" },
+  checkWrap: { display: "flex", flexWrap: "wrap", gap: 8 },
+  check: {
+    display: "flex", alignItems: "center", gap: 8, background: "rgba(255,255,255,.6)",
+    border: "1px solid rgba(23,48,51,.12)", borderRadius: 10, padding: "8px 12px",
+    cursor: "pointer", fontFamily: "inherit", fontSize: 15, color: C.ink,
+  },
+  checkBox: {
+    width: 18, height: 18, borderRadius: 5, border: "1.6px solid", display: "grid",
+    placeItems: "center", color: "#fff", fontSize: 12, fontWeight: 700, flexShrink: 0,
+  },
+  reflectRow: { display: "flex", gap: 12, marginTop: 16, flexWrap: "wrap" },
+  miniLabel: { display: "block", color: C.inkSoft, fontSize: 13.5, marginBottom: 5, letterSpacing: ".03em" },
+  miniTa: {
+    width: "100%", minHeight: 54, background: "rgba(255,255,255,.6)", border: "1px solid rgba(23,48,51,.14)",
+    borderRadius: 9, padding: "9px 11px", fontSize: 14.5, color: C.ink, resize: "vertical",
+    fontFamily: "inherit", boxSizing: "border-box",
+  },
+
+  tableWrap: { overflowX: "auto", borderRadius: 14, boxShadow: "0 18px 44px rgba(0,0,0,.28)", marginTop: 18 },
+  table: { width: "100%", borderCollapse: "collapse", background: C.sand, minWidth: 560 },
+  th: { background: C.tide, color: C.sand, padding: "12px 10px", fontSize: 14, fontWeight: 600, letterSpacing: ".02em" },
+  schoolInput: {
+    width: "100%", minWidth: 60, background: "rgba(255,255,255,.14)", border: "1px solid rgba(143,194,187,.4)",
+    borderRadius: 7, color: C.sand, textAlign: "center", padding: "5px 4px", fontSize: 14.5,
+    fontFamily: "inherit", fontWeight: 600,
+  },
+  critCell: { padding: "11px 12px", fontSize: 15, color: C.ink, borderBottom: "1px solid rgba(23,48,51,.08)" },
+  gutTag: {
+    marginLeft: 8, fontSize: 11, color: C.coralDeep, background: "rgba(224,113,78,.16)",
+    padding: "2px 7px", borderRadius: 99, letterSpacing: ".04em", verticalAlign: "middle",
+  },
+  scoreCell: { padding: "8px 10px", borderBottom: "1px solid rgba(23,48,51,.08)", textAlign: "center" },
+  dots: { display: "flex", gap: 5, justifyContent: "center" },
+  dot: { width: 17, height: 17, borderRadius: "50%", border: "1.6px solid", cursor: "pointer", padding: 0, transition: "all .15s ease" },
+  totalLabel: { padding: "14px 12px", fontWeight: 700, color: C.abyss, fontSize: 15, letterSpacing: ".04em", background: C.sandDeep },
+  totalCell: { padding: "12px 10px", textAlign: "center", background: C.sandDeep },
+  totalNum: { fontSize: 24, fontWeight: 700, display: "block" },
+  leaderTag: { fontSize: 11, color: C.coral, letterSpacing: ".05em" },
+  keyRow: { display: "flex", gap: 18, flexWrap: "wrap", marginTop: 14, justifyContent: "center" },
+  keyItem: { color: C.glass, fontSize: 14 },
+
+  nineNote: {
+    marginTop: 26, background: "rgba(224,113,78,.1)", border: `1px solid rgba(224,113,78,.4)`,
+    borderRadius: 14, padding: "18px 20px",
+  },
+  nineTag: {
+    color: C.coral, fontSize: 12, letterSpacing: ".14em", textTransform: "uppercase",
+    fontWeight: 700, marginBottom: 8,
+  },
+
+  compassBlock: { marginBottom: 20 },
+  compassQ: { display: "flex", alignItems: "baseline", gap: 10, color: C.sand, fontSize: 19, marginBottom: 8, fontWeight: 500 },
+  compassStar: { color: C.coral, fontSize: 15 },
+};
+
+// ---------- global CSS ----------
+function Style() {
+  return (
+    <style>{`
+      * { box-sizing: border-box; }
+      body { margin: 0; }
+      textarea:focus, input:focus, button:focus-visible {
+        outline: 2px solid ${C.coral}; outline-offset: 2px;
+      }
+      .fade { animation: fade .5s ease both; }
+      @keyframes fade { from { opacity: 0; transform: translateY(10px);} to { opacity:1; transform:none; } }
+      .interest { animation: rise .5s ease both; }
+      @keyframes rise { from { opacity:0; transform: translateY(14px);} to {opacity:1; transform:none;} }
+      .navbtn:hover { color: ${C.sand} !important; }
+      .careercard:hover { transform: translateY(-2px); }
+      .check:hover { border-color: ${C.moss}; }
+      .dot:hover { transform: scale(1.2); }
+      .spin-slow { animation: spin 60s linear infinite; }
+      @keyframes spin { to { transform: rotate(360deg); } }
+      .blob { position: absolute; border-radius: 50%; filter: blur(70px); }
+      .b1 { width: 460px; height: 460px; background: ${C.tide}; top: -120px; right: -80px; animation: drift1 22s ease-in-out infinite; }
+      .b2 { width: 400px; height: 400px; background: ${C.sea}; bottom: -140px; left: -100px; animation: drift2 26s ease-in-out infinite; }
+      .b3 { width: 320px; height: 320px; background: ${C.moss}; top: 40%; left: 55%; opacity:.5; animation: drift1 30s ease-in-out infinite; }
+      @keyframes drift1 { 0%,100%{transform:translate(0,0);} 50%{transform:translate(-30px,40px);} }
+      @keyframes drift2 { 0%,100%{transform:translate(0,0);} 50%{transform:translate(40px,-30px);} }
+      @media (prefers-reduced-motion: reduce) {
+        .fade,.interest,.spin-slow,.blob { animation: none !important; }
+      }
+    `}</style>
+  );
+}
+
+
+const root = ReactDOM.createRoot(document.getElementById("root"));
+root.render(<App />);
+</script>
+</body>
+</html>
